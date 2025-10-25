@@ -1,0 +1,100 @@
+module array(
+    input  logic clk,
+    input  logic resetn,
+    input  logic[3:0]a,
+    input  logic[3:0]b,
+    output logic[7:0]p,
+    output logic done
+);
+
+    // Partial products
+    logic [3:0] ab0, ab1, ab2, ab3;
+    logic [3:0] s1, s2, s3;
+    logic [3:0] c1, c2, c3;
+    initial begin
+	    p <= 8'h00;
+	    done <= 1'b0;
+    end
+
+    always@(posedge clk) begin
+        if(!resetn) begin
+            p    <= 8'h00;
+            done <= 1'b0;
+        end else begin
+	
+            // Stage 1: Partial products
+	    for(int i=0; i<4; i++)begin
+		    ab0[i] = a[i]&b[0];
+	    end
+	    for(int i=0; i<4; i++)begin
+		    ab1[i] = a[i]&b[1];
+	    end
+            for(int i=0; i<4; i++)begin
+		    ab2[i] = a[i]&b[2];
+	    end
+            for(int i=0; i<4; i++)begin
+		    ab3[i] = a[i]&b[3];
+	    end
+
+
+	  
+            // Stage 2: Generation of carry and sum through partial products using full adder and half adder
+
+	    //Layer 1
+            s1[0] <= ab0[1] ^ ab1[0];          
+	    c1[0] <= ab0[1] & ab1[0];
+            {s1[1], c1[1]} <= {ab0[2] ^ ab1[1] ^ c1[0], (ab0[2]&ab1[1])|(ab1[1]&c1[0])|(c1[0]&ab0[2])};
+            {s1[2], c1[2]} <= {ab0[3] ^ ab1[2] ^ c1[1], (ab0[3]&ab1[2])|(ab1[2]&c1[1])|(c1[1]&ab0[3])};
+            {s1[3], c1[3]} <= {ab1[3] ^ c1[2], ab1[3] & c1[2]};
+
+	    //Layer 2
+            {s2[0], c2[0]} <= {s1[1] ^ ab2[0], s1[1] & ab2[0]};
+            {s2[1], c2[1]} <= {s1[2] ^ ab2[1] ^ c2[0], (s1[2]&ab2[1])|(ab2[1]&c2[0])|(c2[0]&s1[2])};
+            {s2[2], c2[2]} <= {s1[3] ^ ab2[2] ^ c2[1], (s1[3]&ab2[2])|(ab2[2]&c2[1])|(c2[1]&s1[3])};
+            {s2[3], c2[3]} <= {c1[3] ^ ab2[3] ^ c2[2], (c1[3]&ab2[3])|(ab2[3]&c2[2])|(c2[2]&c1[3])};
+
+	    //Layer 3
+            {s3[0], c3[0]} <= {s2[1] ^ ab3[0], s2[1] & ab3[0]};
+            {s3[1], c3[1]} <= {s2[2] ^ ab3[1] ^ c3[0], (s2[2]&ab3[1])|(ab3[1]&c3[0])|(c3[0]&s2[2])};
+            {s3[2], c3[2]} <= {s2[3] ^ ab3[2] ^ c3[1], (s2[3]&ab3[2])|(ab3[2]&c3[1])|(c3[1]&s2[3])};
+            {s3[3], c3[3]} <= {c2[3] ^ ab3[3] ^ c3[2], (c2[3]&ab3[3])|(ab3[3]&c3[2])|(c3[2]&c2[3])};
+
+	    done <= 1'b1;
+	    @(posedge clk);
+	    p <= {c3[3], s3[3], s3[2], s3[1], s3[0], s2[0], s1[0], ab0[0]};
+
+        end
+    end
+endmodule
+
+
+module array_test;
+	reg[3:0]a, b;
+	wire[7:0] p;
+	reg clk, resetn;
+	wire done;
+	array dut(.a(a), .b(b), .p(p), .clk(clk), .resetn(resetn), .done(done));
+	initial begin 
+		clk = 0;
+		forever #5 clk = ~clk;
+	end
+	initial begin 
+		resetn = 0; 
+		@(posedge clk);
+		resetn =1;
+	end
+	initial begin
+		a = 4'b1100;
+		b = 4'b0011;
+
+		#10;
+
+		a = 4'b1111;
+		b = 4'b1111;
+	end
+	initial begin
+		#100; 
+		$finish;
+	end
+endmodule
+

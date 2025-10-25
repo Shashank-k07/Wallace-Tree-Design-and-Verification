@@ -1,0 +1,6 @@
+class axi_tx;
+	randc bit[3:0]a,b;
+	constraint c1{
+		a!=b;
+	end
+endclass

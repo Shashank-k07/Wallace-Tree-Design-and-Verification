@@ -1,0 +1,97 @@
+module wallace_tree(
+	input logic clk,
+	input logic resetn,
+	input logic[3:0]a, 
+	input logic[3:0]b, 
+	output logic done,
+	output logic[7:0]p
+	);
+	
+	//Partial products
+	logic[3:0] ab0, ab1, ab2, ab3;
+	logic[5:0] s1;
+	logic[5:0] c1;
+	logic[4:0]afin, bfin;
+	logic sum0;
+       	logic[4:0] sum1, sum2;
+	logic carry0;
+       	logic[4:0] carry1, carry2;
+	logic prev_carry;
+
+	function logic[1:0] full_adder(input logic a, b, c);
+		logic sum, cout;
+		sum = (a^b^c);
+		cout = (a&b)|(b&c)|(a&c);
+		full_adder = {sum, cout};
+	endfunction
+
+	function logic[1:0] half_adder(input logic a, b);
+		logic sum, cout;
+		sum = (a^b);
+		cout = (a&b);
+		half_adder = {sum, cout};
+	endfunction
+
+	//initial begin 
+		//p <= 8'h00;
+		//done <= 1'b0;
+	//end
+	always@(posedge clk)begin
+		if(resetn==1'b0)begin
+			p <= 8'h00;
+			done <= 1'b0;
+		end
+		else begin
+			done <= 1'b0;
+
+			//Stage 1: Partial product generation
+			for(int i=0; i<4; i++)begin
+				ab0[i] <= a[i]&b[0];
+				ab1[i] <= a[i]&b[1];
+				ab2[i] <= a[i]&b[2];
+				ab3[i] <= a[i]&b[3];
+			end
+			{sum0,carry0} <= half_adder(ab0[1], ab1[0]);
+			p[0] <= ab0[0];
+			p[1] <= sum0;
+			prev_carry <= carry0;
+			//Stage 2: Row reduction into 2 rows
+			
+			//Layer 1: Only 2 full adders
+			{s1[0], c1[0]} <= full_adder(ab1[2], ab2[1], ab3[0]);
+			{s1[1], c1[1]} <= full_adder(ab2[2], ab3[1], c1[0]);
+
+			//Layer 2: Only 2 half adders
+			{s1[2] ,c1[2]} <= half_adder(ab1[1], ab2[0]);
+			{s1[3], c1[3]} <= half_adder(s1[0], c1[2]);
+			{s1[4], c1[4]} <= half_adder(s1[1], c1[3]);
+			{s1[5], c1[5]} <= full_adder(ab2[3], c1[1], c1[4]);
+
+			//Stage 3: Carry save adder
+			afin <= {ab3[3], ab2[3], ab1[3], ab0[3], ab0[2]};
+			bfin <= {c1[5], s1[5], s1[4], s1[3], s1[2]};
+			for(int i= 0; i<5; i++)begin
+				if(prev_carry==1'b0)begin
+					{sum1[i], carry1[i]} <= full_adder(afin[i], bfin[i], 1'b0);
+					prev_carry <= carry1[i];
+				end
+				if(prev_carry==1'b1)begin
+					{sum1[i], carry1[i]} <= full_adder(afin[i], bfin[i], 1'b1);
+					prev_carry <= carry1[i];
+				end
+			end
+			p[6:2] <= sum1;
+			p[7] <= prev_carry;
+			//if(p!=8'hxx)
+		//	wait(p[7]==prev_carry);
+							
+			
+
+		end
+		if(p[6:2]==sum1)
+			done = 1'b1;
+
+	end
+
+endmodule
+
